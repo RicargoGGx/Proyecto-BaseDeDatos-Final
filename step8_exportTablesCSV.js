@@ -7,10 +7,10 @@ const Process = require('./Utils/Process');
   try {
     console.log("[STEP 8] Exportando tablas Autor y Libro a CSV...");
 
-    // Ruta permitida por secure_file_priv (según tu configuración)
-    const secureFolder = "C:/ProgramData/MySQL/MySQL Server 8.4/Uploads";
-    const autorExportServer = path.join(secureFolder, 'autor_export.csv').replace(/\\/g, '/');
-    const libroExportServer = path.join(secureFolder, 'libro_export.csv').replace(/\\/g, '/');
+    // Ruta permitida por secure_file_priv
+    const secureFolder = "C:/MySQL/Uploads";
+    const autorExportServer = path.join(secureFolder, 'autor_export.csv'); 
+    const libroExportServer = path.join(secureFolder, 'libro_export.csv');
 
     // Exportar tabla Autor
     const startTimeAutor = Date.now();

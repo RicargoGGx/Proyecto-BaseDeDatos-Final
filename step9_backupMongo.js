@@ -16,7 +16,7 @@ const BATCH_SLEEP_MS = 0.2; // en segundos (0.2 s = 200 ms)
     console.log("[9a] Ejecutando mysqldump de 'biblioteca'...");
     const dumpProc = new Process("mysqldump", { shell: true });
     dumpProc.ProcessArguments.push("-uroot");
-    dumpProc.ProcessArguments.push("-pR4bb1t");
+    dumpProc.ProcessArguments.push("-password123");
     dumpProc.ProcessArguments.push("biblioteca");
     const snapshotPath = path.join(__dirname, "mysql_backup.sql");
     dumpProc.ProcessArguments.push(`--result-file=${snapshotPath}`);
@@ -64,7 +64,7 @@ const BATCH_SLEEP_MS = 0.2; // en segundos (0.2 s = 200 ms)
     {
       const dropProc = new Process("mysql", { shell: true });
       dropProc.ProcessArguments.push("-uroot");
-      dropProc.ProcessArguments.push("-pR4bb1t");
+      dropProc.ProcessArguments.push("-password123");
       dropProc.Execute(true);
       dropProc.Write("USE biblioteca;\n");
       dropProc.Write("DROP TABLE IF EXISTS Libro;\n");
@@ -101,7 +101,7 @@ const BATCH_SLEEP_MS = 0.2; // en segundos (0.2 s = 200 ms)
     {
       const createProc = new Process("mysql", { shell: true });
       createProc.ProcessArguments.push("-uroot");
-      createProc.ProcessArguments.push("-pR4bb1t");
+      createProc.ProcessArguments.push("-password123");
       createProc.Execute(true);
       createProc.Write("USE biblioteca;\n");
       createProc.Write(`
@@ -143,7 +143,7 @@ const BATCH_SLEEP_MS = 0.2; // en segundos (0.2 s = 200 ms)
 
       const autorProc = new Process("mysql", { shell: true });
       autorProc.ProcessArguments.push("-uroot");
-      autorProc.ProcessArguments.push("-pR4bb1t");
+      autorProc.ProcessArguments.push("-password123");
       autorProc.Execute(true);
       autorProc.Write("USE biblioteca;\n");
 
@@ -186,7 +186,7 @@ const BATCH_SLEEP_MS = 0.2; // en segundos (0.2 s = 200 ms)
 
       const libroProc = new Process("mysql", { shell: true });
       libroProc.ProcessArguments.push("-uroot");
-      libroProc.ProcessArguments.push("-pR4bb1t");
+      libroProc.ProcessArguments.push("-password123");
       libroProc.Execute(true);
       libroProc.Write("USE biblioteca;\n");
 

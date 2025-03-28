@@ -38,9 +38,9 @@ const Process = require('./Utils/Process');
       p.End();
       await p.Finish();
 
-      console.log(`[STEP 5] Comando ejecutado: LOAD DATA LOCAL INFILE '${csvPath.replace(/\\/g, '/')}'`);
-      console.log(`[STEP 5] Logs de salida (Archivo: ${fileName}):`, p.Logs);
-      console.log(`[STEP 5] Errores (Archivo: ${fileName}):`, p.ErrorsLog);
+      //console.log(`[STEP 5] Comando ejecutado: LOAD DATA LOCAL INFILE '${csvPath.replace(/\\/g, '/')}'`);
+      //console.log(`[STEP 5] Logs de salida (Archivo: ${fileName}):`, p.Logs);
+      //console.log(`[STEP 5] Errores (Archivo: ${fileName}):`, p.ErrorsLog);
     }
 
     const endTime = Date.now();
