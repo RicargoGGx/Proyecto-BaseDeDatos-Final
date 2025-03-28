@@ -1,26 +1,25 @@
-// step5_insert100CSVs.js
 const fs = require('fs');
 const path = require('path');
 const Process = require('./Utils/Process');
+const { saveMetric } = require('./Utils/metrics');
 
-(async () => {
+module.exports = async () => {
   try {
     console.log("[STEP 5] Insertando 100 CSV en la tabla 'Libro'...");
-
+    
     const csvDir = path.join(__dirname, 'csv');
     const startTime = Date.now();
 
     for (let i = 0; i < 100; i++) {
-      const fileName = `libros_${i}.csv`;
+      const fileName = `libros_${i.toString().padStart(2, '0')}.csv`;
       const csvPath = path.join(csvDir, fileName);
 
       if (!fs.existsSync(csvPath)) {
-        console.warn(`[STEP 5] El archivo no existe: ${csvPath}. Se omite.`);
+        console.warn(`[STEP 5] Archivo no encontrado: ${fileName}. Se omite.`);
         continue;
       }
 
       const p = new Process("mysql", { shell: true });
-      // Agregar la opción para permitir LOAD DATA LOCAL INFILE
       p.ProcessArguments.push("--local-infile=1");
       p.ProcessArguments.push("-uA");
       p.ProcessArguments.push("-ppasswordA");
@@ -38,15 +37,24 @@ const Process = require('./Utils/Process');
       p.End();
       await p.Finish();
 
-      //console.log(`[STEP 5] Comando ejecutado: LOAD DATA LOCAL INFILE '${csvPath.replace(/\\/g, '/')}'`);
-      //console.log(`[STEP 5] Logs de salida (Archivo: ${fileName}):`, p.Logs);
-      //console.log(`[STEP 5] Errores (Archivo: ${fileName}):`, p.ErrorsLog);
+      // Mostrar progreso cada 10 archivos
+      if ((i + 1) % 10 === 0) {
+        console.log(`[STEP 5] Procesados ${i + 1}/100 archivos...`);
+      }
     }
 
     const endTime = Date.now();
-    console.log(`[STEP 5] Tiempo total: ${endTime - startTime} ms`);
-    console.log("Los 100 CSV se han insertado correctamente en la tabla 'Libro'.");
+    const executionTime = endTime - startTime;
+    
+    // Guardar solo el tiempo de ejecución
+    saveMetric('step5', 'insert_100_csvs', executionTime);
+
+    console.log(`[STEP 5] Tiempo total: ${executionTime} ms`);
+    console.log("[STEP 5] Proceso completado.");
+    
+    return executionTime;
   } catch (err) {
     console.error("Error en step5_insert100CSVs:", err);
+    throw err;
   }
-})();
+};

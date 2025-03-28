@@ -24,7 +24,7 @@
             <div class="metric-list">
                 <h2>Resumen de Tiempos</h2>
                 <ul>
-                    <li><strong>step1 - generate_csv:</strong> 1102 ms</li><li><strong>step2 - insert_csv:</strong> 2726 ms</li><li><strong>step3 - insert_stress:</strong> 13295 ms</li>
+                    <li><strong>step1 - generate_csv:</strong> 1195 ms</li><li><strong>step2 - insert_csv:</strong> 2956 ms</li><li><strong>step3 - insert_stress:</strong> 13460 ms</li><li><strong>step4 - generate_100_csvs:</strong> 400 ms</li><li><strong>step5 - insert_100_csvs:</strong> 12420 ms</li>
                 </ul>
             </div>
             
@@ -37,11 +37,11 @@
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: ["step1 - generate_csv","step2 - insert_csv","step3 - insert_stress"],
+                        labels: ["step1 - generate_csv","step2 - insert_csv","step3 - insert_stress","step4 - generate_100_csvs","step5 - insert_100_csvs"],
                         datasets: [{
                             label: 'Tiempo de ejecución (ms)',
-                            data: [1102,2726,13295],
-                            backgroundColor: ["rgba(255, 99, 132, 0.7)","rgba(54, 162, 235, 0.7)","rgba(255, 206, 86, 0.7)"],
+                            data: [1195,2956,13460,400,12420],
+                            backgroundColor: ["rgba(255, 99, 132, 0.7)","rgba(54, 162, 235, 0.7)","rgba(255, 206, 86, 0.7)","rgba(75, 192, 192, 0.7)","rgba(153, 102, 255, 0.7)"],
                             borderWidth: 1
                         }]
                     },

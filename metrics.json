@@ -1,13 +1,19 @@
 {
   "steps": {
     "step1": {
-      "generate_csv": 1102
+      "generate_csv": 1195
     },
     "step2": {
-      "insert_csv": 2726
+      "insert_csv": 2956
     },
     "step3": {
-      "insert_stress": 13295
+      "insert_stress": 13460
+    },
+    "step4": {
+      "generate_100_csvs": 400
+    },
+    "step5": {
+      "insert_100_csvs": 12420
     }
   }
 }
