@@ -7,68 +7,77 @@ const Process = require('./Utils/Process');
   try {
     console.log("[STEP 8] Exportando tablas Autor y Libro a CSV...");
 
-    // Asegúrate de que tu MySQL tenga permiso para escribir OUTFILE
-    // en la ruta que especifiques. Por defecto, MySQL escribe en el servidor
-    // (no en la carpeta local del cliente). 
-    // Si estás en Windows, revisa secure-file-priv en my.ini
+    // Ruta permitida por secure_file_priv (según tu configuración)
+    const secureFolder = "C:/ProgramData/MySQL/MySQL Server 8.4/Uploads";
+    const autorExportServer = path.join(secureFolder, 'autor_export.csv').replace(/\\/g, '/');
+    const libroExportServer = path.join(secureFolder, 'libro_export.csv').replace(/\\/g, '/');
 
-    // 1) Exportar Autor a CSV
-    const csvDir = path.join(__dirname, 'csv');
-    const authorCSV = 'autor_export.csv'; // Nombre en disco del servidor MySQL
-    const authorCSVPath = path.join(csvDir, authorCSV);
-
-    let startTime = Date.now();
+    // Exportar tabla Autor
+    const startTimeAutor = Date.now();
     const exportAutor = new Process("mysql", { shell: true });
     exportAutor.ProcessArguments.push("-uB");
     exportAutor.ProcessArguments.push("-ppasswordB");
     exportAutor.Execute(true);
-
-    // Ten en cuenta que 'secure-file-priv' suele requerir
-    // que /var/lib/mysql-files (Linux) sea la ruta real. 
-    // Este es un ejemplo simplificado (podría causar error si MySQL no deja).
     exportAutor.Write("USE biblioteca;\n");
     exportAutor.Write(`
       SELECT id, license, name, lastName, secondLastName, year
-      INTO OUTFILE 'C:/tmp/autor_export.csv'
+      INTO OUTFILE '${autorExportServer}'
       FIELDS TERMINATED BY ','
       LINES TERMINATED BY '\\n'
       FROM Autor;
     `);
     exportAutor.End();
     await exportAutor.Finish();
-    let endTime = Date.now();
-    console.log(`[Autor CSV] Tiempo Export: ${endTime - exportAutor.StartTime} ms`);
+    const endTimeAutor = Date.now();
+    console.log(`[STEP 8] Export Autor completado en: ${endTimeAutor - startTimeAutor} ms`);
 
-    // (Opcional) Mover el archivo desde 'C:/tmp/autor_export.csv' a './csv/autor_export.csv'
-    // si tu MySQL sí dejó crearlo. 
-    // fs.renameSync("C:/tmp/autor_export.csv", authorCSVPath);
-
-    // 2) Exportar Libro a CSV
-    const libroCSV = 'libro_export.csv';
-    const libroCSVPath = path.join(csvDir, libroCSV);
-
-    startTime = Date.now();
+    // Exportar tabla Libro
+    const startTimeLibro = Date.now();
     const exportLibro = new Process("mysql", { shell: true });
-    exportLibro.ProcessArguments.push("-uA");          // A tiene SELECT en Autor y Libro, B también, elige
-    exportLibro.ProcessArguments.push("-ppasswordA");  
+    exportLibro.ProcessArguments.push("-uA");
+    exportLibro.ProcessArguments.push("-ppasswordA");
     exportLibro.Execute(true);
-
     exportLibro.Write("USE biblioteca;\n");
     exportLibro.Write(`
       SELECT id, ISBN, title, autor_license, editorial, pages, year, genre, language, format, sinopsis, content
-      INTO OUTFILE 'C:/tmp/libro_export.csv'
+      INTO OUTFILE '${libroExportServer}'
       FIELDS TERMINATED BY ','
       LINES TERMINATED BY '\\n'
       FROM Libro;
     `);
     exportLibro.End();
     await exportLibro.Finish();
-    endTime = Date.now();
-    console.log(`[Libro CSV] Tiempo Export: ${endTime - startTime} ms`);
+    const endTimeLibro = Date.now();
+    console.log(`[STEP 8] Export Libro completado en: ${endTimeLibro - startTimeLibro} ms`);
 
-    // fs.renameSync("C:/tmp/libro_export.csv", libroCSVPath);
+    // Ruta de la carpeta local para guardar los archivos exportados
+    const exportFolderLocal = path.join(__dirname, 'csv', 'exports');
+    if (!fs.existsSync(exportFolderLocal)) {
+      fs.mkdirSync(exportFolderLocal, { recursive: true });
+      console.log("[STEP 8] Carpeta local 'csv/exports' creada.");
+    }
+    const autorExportLocal = path.join(exportFolderLocal, 'autor_export.csv');
+    const libroExportLocal = path.join(exportFolderLocal, 'libro_export.csv');
 
-    console.log("Tablas Autor y Libro exportadas a CSV correctamente.");
+    // Verificar y copiar el archivo Autor
+    if (!fs.existsSync(autorExportServer)) {
+      console.error("[STEP 8] No se encontró el archivo exportado para Autor en:", autorExportServer);
+    } else {
+      fs.copyFileSync(autorExportServer, autorExportLocal);
+      console.log("[STEP 8] Archivo Autor exportado copiado a:", autorExportLocal);
+    }
+
+    // Verificar y copiar el archivo Libro
+    if (!fs.existsSync(libroExportServer)) {
+      console.error("[STEP 8] No se encontró el archivo exportado para Libro en:", libroExportServer);
+    } else {
+      fs.copyFileSync(libroExportServer, libroExportLocal);
+      console.log("[STEP 8] Archivo Libro exportado copiado a:", libroExportLocal);
+    }
+
+    console.log("[STEP 8] Exportación completa.");
+    console.log("Archivo Autor CSV (local):", autorExportLocal);
+    console.log("Archivo Libro CSV (local):", libroExportLocal);
   } catch (err) {
     console.error("Error en step8_exportTablesCSV:", err);
   }

@@ -1,29 +1,26 @@
 // step1_generateCSV.js
 const fs = require('fs');
 const path = require('path');
-const { generate_csv } = require('./Utils/generador_aleatorio');
+const { generate_csv, setBookCounter } = require('./Utils/generador_aleatorio');
+
+// Reinicia el contador a 1.
+setBookCounter(1);
 
 (async () => {
   try {
-    console.log("[STEP 1] Generando CSV de 100,000 Libros...");
-
-    // Asegurar que exista la carpeta ./csv
-    const csvDir = path.join(__dirname, 'csv');
-    if (!fs.existsSync(csvDir)) {
-      fs.mkdirSync(csvDir);
-    }
+    console.log("[STEP 1] Generando CSV de 100,000 libros...");
+    const csvFolder = path.join(__dirname, 'csv');
+    if (!fs.existsSync(csvFolder)) fs.mkdirSync(csvFolder);
 
     const startTime = Date.now();
     const csvData = generate_csv(100000);
-    
-    // Guardar en carpeta csv
-    const outputFile = path.join(csvDir, 'libros_100k.csv');
-    fs.writeFileSync(outputFile, csvData);
-
+    const filePath = path.join(csvFolder, "libros_100k.csv");
+    fs.writeFileSync(filePath, csvData);
     const endTime = Date.now();
+
+    console.log(`[STEP 1] CSV generado en: ${filePath}`);
     console.log(`[STEP 1] Tiempo total: ${endTime - startTime} ms`);
-    console.log(`CSV generado correctamente en: ${outputFile}`);
-  } catch (err) {
-    console.error("Error en step1_generateCSV:", err);
+  } catch (error) {
+    console.error("Error en step1_generateCSV:", error);
   }
 })();

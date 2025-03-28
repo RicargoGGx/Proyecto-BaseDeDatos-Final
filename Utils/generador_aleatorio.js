@@ -1,87 +1,58 @@
 // Utils/generador_aleatorio.js
-const fs = require('fs');
+
+let bookCounter = 1; // Contador global
 
 function random_number(min, max) {
-    return Math.floor(Math.random() * (max - min) + min);
+  return Math.floor(Math.random() * (max - min) + min);
 }
 
-function random_text(characters_num) {
-    let text = "";
-    for (let i = 0; i < characters_num; i++) {
-        // 65 - 90 (A-Z). Ajusta si quieres letras minúsculas.
-        const letra = String.fromCharCode(random_number(65, 90));
-        text += letra;
-    }
-    return text;
+function random_text(length) {
+  let txt = "";
+  for (let i = 0; i < length; i++) {
+    txt += String.fromCharCode(random_number(65, 91));
+  }
+  return txt;
 }
 
 /**
- * Genera un CSV para "Libros" con columnas:
- * ISBN, title, autor_license, pages, year, language
+ * Genera una línea CSV para la tabla Libro con 12 columnas:
+ * id, ISBN, title, autor_license, editorial, pages, year, genre, language, format, sinopsis, content.
+ * Usa el contador global para valores únicos.
  */
+function generateBookRow() {
+  const id = bookCounter;
+  const isbn = (978000000 + id).toString();
+  const title = "Titulo" + random_text(random_number(5, 15));
+  const autor_license = "LICENSE123"; // Debe existir en Autor.
+  const editorial = "Ed" + random_text(random_number(3, 8));
+  const pages = random_number(50, 999);
+  const year = random_number(1950, 2025);
+  const genre = "Gen" + random_text(random_number(2, 6));
+  const language = "ES";
+  const format = "Form" + random_text(2);
+  const sinopsis = "Sinop" + random_text(random_number(10, 20));
+  const content = "Cont" + random_text(random_number(20, 40));
+
+  bookCounter++; // Incrementa para el siguiente registro.
+  return `${id},${isbn},${title},${autor_license},${editorial},${pages},${year},${genre},${language},${format},${sinopsis},${content}\n`;
+}
+
 function generate_csv(size) {
-    let csv = "";
-    for (let i = 0; i < size; i++) {
-        const isbn = Math.round(Math.random() * 9999999999);
-        const title = random_text(random_number(5, 15));
-        // Ajusta autor_license si deseas forzar un autor existente
-        const autor_license = 'LICENSE123';
-        const pages = random_number(50, 999);
-        const year = random_number(1950, 2025);
-        const language = "ES";
-
-        // Crea cada línea separada por comas
-        csv += `${isbn},${title},${autor_license},${pages},${year},${language}\n`;
-    }
-    return csv;
+  let csv = "";
+  for (let i = 0; i < size; i++) {
+    csv += generateBookRow();
+  }
+  return csv;
 }
 
-/**
- * Genera un JSON con campos típicos de "Libros"
- * y lo escribe a un archivo si se especifica 'stream'.
- */
-function generate_json(size, stream) {
-    let output = "";
-    let fileStream = null;
-    if (stream) {
-        fileStream = fs.createWriteStream(stream, { flags: 'w' });
-    }
-
-    for (let i = 0; i < size; i++) {
-        const isbn = Math.round(Math.random() * 9999999999);
-        const title = random_text(random_number(5, 15));
-        const autor_license = 'LICENSE123';
-        const pages = random_number(50, 999);
-        const year = random_number(1950, 2025);
-        const language = "ES";
-
-        const record = {
-            isbn,
-            title,
-            autor_license,
-            pages,
-            year,
-            language
-        };
-
-        const line = JSON.stringify(record) + "\n";
-        if (fileStream) {
-            fileStream.write(line);
-        } else {
-            output += line;
-        }
-    }
-
-    if (fileStream) {
-        fileStream.close();
-    } else {
-        return output;
-    }
+function setBookCounter(value) {
+  bookCounter = value;
 }
 
 module.exports = {
-    random_number,
-    random_text,
-    generate_csv,
-    generate_json
+  random_number,
+  random_text,
+  generate_csv,
+  generateBookRow, 
+  setBookCounter
 };

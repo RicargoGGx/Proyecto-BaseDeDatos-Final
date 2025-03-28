@@ -1,48 +1,49 @@
 // step10_snapshotMySQL.js
 const Process = require('./Utils/Process');
 const fs = require('fs');
+const path = require('path');
 
 (async () => {
   try {
-    console.log("[STEP 10] Generando snapshot (mysqldump) de la base de datos...");
-
-    // 1) Dump (snapshot)
+    // Definimos la ruta del snapshot en la carpeta actual del proyecto
+    const snapshotPath = path.join(__dirname, "mysql_backup.sql");
+    
+    console.log("[STEP 10] Iniciando generación del snapshot (mysqldump) de la base de datos 'biblioteca'...");
     const startDump = Date.now();
     const dumpProc = new Process("mysqldump", { shell: true });
     dumpProc.ProcessArguments.push("-uroot");
-    dumpProc.ProcessArguments.push("-ppasswordRoot");
+    dumpProc.ProcessArguments.push("-pR4bb1t");
     dumpProc.ProcessArguments.push("biblioteca");
-    dumpProc.ProcessArguments.push("--result-file=biblioteca_snapshot.sql"); // Nombre del snapshot
+    dumpProc.ProcessArguments.push(`--result-file=${snapshotPath}`);
     dumpProc.Execute(true);
     await dumpProc.Finish();
-
     const endDump = Date.now();
-    console.log(`[Snapshot] Dump completado en: ${endDump - startDump} ms`);
+    console.log(`[STEP 10] mysqldump completado en: ${endDump - dumpProc.StartTime} ms`);
 
-    // 2) Importar el snapshot (p. ej., en otra DB o la misma).
-    // O, si quieres, primero drop la DB `biblioteca`. 
-    // Para no romper tus datos, podrías crear una DB "biblioteca_test".
-    console.log("[STEP 10] Importando snapshot...");
+    // Verificar si el archivo del snapshot existe y su tamaño
+    if (fs.existsSync(snapshotPath)) {
+      const stats = fs.statSync(snapshotPath);
+      console.log(`[STEP 10] Snapshot guardado en: ${snapshotPath}`);
+      console.log(`[STEP 10] Tamaño del snapshot: ${stats.size} bytes`);
+    } else {
+      console.error("[STEP 10] ERROR: No se encontró el archivo del snapshot en:", snapshotPath);
+      return;
+    }
+    
+    // Importar el snapshot en la base de datos "biblioteca_test"
+    console.log("[STEP 10] Importando snapshot en la base de datos 'biblioteca_test'...");
     const startImport = Date.now();
-
     const importProc = new Process("mysql", { shell: true });
     importProc.ProcessArguments.push("-uroot");
-    importProc.ProcessArguments.push("-ppasswordRoot");
-    // Importar en la misma base u otra (ej: biblioteca_test).
-    importProc.ProcessArguments.push("biblioteca_test");  
+    importProc.ProcessArguments.push("-pR4bb1t");
+    importProc.ProcessArguments.push("biblioteca_test");
     importProc.Execute(true);
-
-    // Aquí inyectamos el contenido del archivo con un redireccionamiento:
-    // Sin embargo, con Process.js no es tan trivial. 
-    // Una forma: "mysql -uroot -p biblioteca_test < biblioteca_snapshot.sql" 
-    // se hace en la consola normal. 
-    // Con la clase Process, puedes simularlo:
-    importProc.Write(`SOURCE biblioteca_snapshot.sql;\n`);
+    // Utilizamos el comando SOURCE para cargar el archivo
+    importProc.Write(`SOURCE ${snapshotPath};\n`);
     importProc.End();
     await importProc.Finish();
-
     const endImport = Date.now();
-    console.log(`[Snapshot] Import completado en: ${endImport - startImport} ms`);
+    console.log(`[STEP 10] Import completado en: ${endImport - importProc.StartTime} ms`);
 
     console.log("¡Snapshot (dump + import) completado!");
   } catch (err) {

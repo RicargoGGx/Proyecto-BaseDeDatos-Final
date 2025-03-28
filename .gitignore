@@ -1,2 +1,5 @@
 CSV/*
 !CSV/.gitkeep
+mongo_autor.json
+mongo_libro.json
+mysql_backup.sql
