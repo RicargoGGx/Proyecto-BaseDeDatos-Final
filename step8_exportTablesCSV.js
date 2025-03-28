@@ -39,10 +39,24 @@ const Process = require('./Utils/Process');
     exportLibro.Execute(true);
     exportLibro.Write("USE biblioteca;\n");
     exportLibro.Write(`
-      SELECT id, ISBN, title, autor_license, editorial, pages, year, genre, language, format, sinopsis, content
+      SELECT 
+        id, 
+        ISBN, 
+        REPLACE(REPLACE(title, '"', '""'), 
+        autor_license, 
+        editorial, 
+        pages, 
+        year, 
+        genre, 
+        language, 
+        format, 
+        REPLACE(REPLACE(sinopsis, '"', '""'), 
+        REPLACE(REPLACE(REPLACE(content, '"', '""'), '\\n', '\\\\n')
       INTO OUTFILE '${libroExportServer}'
-      FIELDS TERMINATED BY ','
-      LINES TERMINATED BY '\\n'
+      FIELDS TERMINATED BY ',' 
+      OPTIONALLY ENCLOSED BY '"'
+      LINES TERMINATED BY '\\r\\n'
+      CHARACTER SET utf8mb4
       FROM Libro;
     `);
     exportLibro.End();

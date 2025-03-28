@@ -1,237 +1,347 @@
-// step9_backupMongo.js
 const fs = require('fs');
 const path = require('path');
-const Process = require('./Utils/Process');
-const sleep = require('./Utils/Sleep');
+const { execSync } = require('child_process');
+const mysql = require('mysql2/promise');
 
-// Configuración para lotes (ajusta según convenga)
-const BATCH_SIZE = 100;
-const BATCH_SLEEP_MS = 0.2; // en segundos (0.2 s = 200 ms)
+// Configuración mejorada
+const TEMP_DIR = path.join(process.env.TEMP || __dirname, 'db_temp'); // Usar directorio temporal del sistema
+const MYSQLDUMP_PATH = 'mysqldump';
+const MONGO_IMPORT_PATH = 'C:/MongoDb/bin/mongoimport.exe';
+const MONGO_EXPORT_PATH = 'C:/MongoDb/bin/mongoexport.exe';
 
+// Función para asegurar el directorio temporal
+const ensureTempDir = () => {
+  if (!fs.existsSync(TEMP_DIR)) {
+    fs.mkdirSync(TEMP_DIR, { recursive: true });
+    console.log(`[Init] Directorio temporal creado: ${TEMP_DIR}`);
+  }
+  return TEMP_DIR;
+};
+
+// Función mejorada para exportar datos a JSON
+const exportTableToMongoJSON = async (tableName) => {
+  const tempDir = ensureTempDir();
+  const outputPath = path.join(tempDir, `${tableName}.json`);
+  
+  // Limpiar archivo existente si hay
+  if (fs.existsSync(outputPath)) {
+    fs.unlinkSync(outputPath);
+  }
+
+  const connection = await mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: 'password123',
+    database: 'biblioteca'
+  });
+
+  try {
+    console.log(`[Export] Obteniendo datos de ${tableName}...`);
+    const [rows] = await connection.query(`SELECT * FROM ${tableName}`);
+    
+    console.log(`[Export] Escribiendo ${rows.length} registros a ${outputPath}`);
+    const writeStream = fs.createWriteStream(outputPath);
+    
+    // Escribir como array JSON válido
+    writeStream.write('[\n');
+    for (let i = 0; i < rows.length; i++) {
+      writeStream.write(JSON.stringify(rows[i]));
+      if (i < rows.length - 1) writeStream.write(',\n');
+      
+      // Flush periódico para asegurar escritura
+      if (i % 5000 === 0) {
+        await new Promise(resolve => writeStream.write('', 'utf8', resolve));
+        console.log(`[Export] Progreso ${tableName}: ${i}/${rows.length} registros`);
+      }
+    }
+    writeStream.write('\n]');
+    writeStream.end();
+
+    // Esperar a que se escriba completamente
+    await new Promise(resolve => writeStream.on('finish', resolve));
+    
+    // Verificación robusta del archivo generado
+    if (!fs.existsSync(outputPath)) {
+      throw new Error(`El archivo ${outputPath} no se creó`);
+    }
+    
+    const stats = fs.statSync(outputPath);
+    if (stats.size === 0) {
+      throw new Error(`El archivo ${outputPath} está vacío`);
+    }
+
+    console.log(`[Export] ${tableName} completado. Tamaño: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+    return outputPath;
+  } finally {
+    await connection.end();
+  }
+};
+
+// Función mejorada para importar a MongoDB
+const importToMongoDB = async (collectionName, jsonPath) => {
+  // Verificación exhaustiva del archivo
+  if (!fs.existsSync(jsonPath)) {
+    throw new Error(`Archivo no encontrado: ${jsonPath}`);
+  }
+
+  const stats = fs.statSync(jsonPath);
+  console.log(`[Import] Preparando importación de ${collectionName}`);
+  console.log(`- Ruta: ${jsonPath}`);
+  console.log(`- Tamaño: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+
+  try {
+    const cmd = `"${MONGO_IMPORT_PATH}" --db BiblioMongo --collection ${collectionName} --file "${jsonPath}" --jsonArray`;
+    console.log(`[Import] Ejecutando: ${cmd}`);
+    
+    const startTime = Date.now();
+    const output = execSync(cmd, { stdio: 'pipe', maxBuffer: 1024 * 1024 * 10 }); // 10MB buffer
+    
+    console.log(output.toString());
+    console.log(`[Import] ${collectionName} completado en ${((Date.now() - startTime)/1000).toFixed(2)}s`);
+  } catch (err) {
+    console.error(`[ERROR] Fallo en importación de ${collectionName}:`);
+    console.error(err.stderr?.toString() || err.message);
+    
+    // Diagnóstico avanzado
+    try {
+      const sampleSize = 200;
+      const fileContent = fs.readFileSync(jsonPath, 'utf8');
+      console.log('\n=== MUESTRA DEL ARCHIVO JSON (inicio) ===');
+      console.log(fileContent.substring(0, sampleSize));
+      console.log('\n=== MUESTRA DEL ARCHIVO JSON (final) ===');
+      console.log(fileContent.slice(-sampleSize));
+    } catch (readErr) {
+      console.error('No se pudo leer el archivo para diagnóstico:', readErr.message);
+    }
+    
+    throw new Error(`Importación fallida para ${collectionName}`);
+  }
+};
+
+// Función para eliminar tablas MySQL
+const dropMySQLTables = async () => {
+  const connection = await mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: 'password123',
+    database: 'biblioteca'
+  });
+  
+  try {
+    console.log('[MySQL] Deshabilitando verificaciones de clave foránea...');
+    await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+    
+    console.log('[MySQL] Eliminando tablas...');
+    await connection.query('DROP TABLE IF EXISTS Libro');
+    await connection.query('DROP TABLE IF EXISTS Autor');
+    
+    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+    console.log('[MySQL] Tablas eliminadas correctamente');
+  } finally {
+    await connection.end();
+  }
+};
+
+// Función para restaurar datos en MySQL
+const restoreMySQLFromJSON = async () => {
+  const connection = await mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: 'password123',
+    database: 'biblioteca',
+    multipleStatements: true
+  });
+
+  try {
+    // Crear estructura de tablas (sin cambios)
+    console.log('[Restore] Creando estructura de tablas...');
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS Autor(
+        id INT,
+        license VARCHAR(12) NOT NULL PRIMARY KEY,
+        name TINYTEXT NOT NULL,
+        lastName TINYTEXT,
+        secondLastName TINYTEXT,
+        year SMALLINT
+      );
+      CREATE TABLE IF NOT EXISTS Libro(
+        id INT,
+        ISBN VARCHAR(16) NOT NULL,
+        title VARCHAR(512) NOT NULL,
+        autor_license VARCHAR(12),
+        editorial TINYTEXT,
+        pages SMALLINT,
+        year SMALLINT NOT NULL,
+        genre TINYTEXT,
+        language TINYTEXT NOT NULL,
+        format TINYTEXT,
+        sinopsis TEXT,
+        content TEXT,
+        FOREIGN KEY (autor_license) REFERENCES Autor(license)
+      );
+    `);
+
+    // Función mejorada para cargar datos desde JSON
+    const loadDataFromJSON = async (jsonFile, tableName) => {
+      console.log(`[Restore] Cargando ${tableName} desde ${jsonFile}...`);
+      
+      if (!fs.existsSync(jsonFile)) {
+        throw new Error(`Archivo no encontrado: ${jsonFile}`);
+      }
+
+      // Leer y parsear el archivo JSON
+      const fileContent = fs.readFileSync(jsonFile, 'utf8');
+      let data;
+      try {
+        data = JSON.parse(fileContent);
+      } catch (e) {
+        console.error('Error parseando JSON:', e.message);
+        console.error('Contenido del archivo (primeros 200 caracteres):', fileContent.substring(0, 200));
+        throw e;
+      }
+
+      console.log(`[Restore] Encontrados ${data.length} registros para ${tableName}`);
+      
+      // Filtrar columnas no deseadas (especialmente _id)
+      const columns = Object.keys(data[0])
+        .filter(key => key !== '_id')
+        .join(', ');
+      
+      const batchSize = 100;
+      let importedCount = 0;
+
+      for (let i = 0; i < data.length; i += batchSize) {
+        const batch = data.slice(i, i + batchSize);
+        const values = batch.map(row => {
+          // Crear copia del objeto sin _id
+          const rowCopy = {...row};
+          delete rowCopy._id;
+          
+          return '(' + Object.values(rowCopy).map(val => {
+            if (val === null || val === undefined) return 'NULL';
+            if (typeof val === 'number') return val;
+            // Escapar comillas simples para SQL
+            return `'${String(val).replace(/'/g, "''")}'`;
+          }).join(', ') + ')';
+        }).join(', ');
+
+        try {
+          await connection.query(`INSERT INTO ${tableName} (${columns}) VALUES ${values}`);
+          importedCount += batch.length;
+        } catch (e) {
+          console.error(`Error insertando lote ${i}-${i+batchSize}:`, e.message);
+          console.error('Primer registro del lote:', batch[0]);
+          throw e;
+        }
+
+        if (i % 1000 === 0 || i + batchSize >= data.length) {
+          console.log(`[Restore] Progreso ${tableName}: ${importedCount}/${data.length}`);
+        }
+      }
+
+      console.log(`[Restore] ${tableName} completado. Total: ${importedCount} registros`);
+    };
+
+    // Cargar datos
+    await loadDataFromJSON('mongo_autor.json', 'Autor');
+    await loadDataFromJSON('mongo_libro.json', 'Libro');
+
+  } finally {
+    await connection.end();
+  }
+};
+
+// Función principal
 (async () => {
   try {
-    console.log("[STEP 9] Iniciando respaldo en MongoDB, eliminación en MySQL y restauración completa...");
+    console.log("[STEP 9] Iniciando proceso de respaldo completo...");
+    const globalStartTime = Date.now();
+    ensureTempDir();
 
-    // --- (a) Exportar base de datos "biblioteca" a un dump SQL ---
-    console.log("[9a] Ejecutando mysqldump de 'biblioteca'...");
-    const dumpProc = new Process("mysqldump", { shell: true });
-    dumpProc.ProcessArguments.push("-uroot");
-    dumpProc.ProcessArguments.push("-password123");
-    dumpProc.ProcessArguments.push("biblioteca");
-    const snapshotPath = path.join(__dirname, "mysql_backup.sql");
-    dumpProc.ProcessArguments.push(`--result-file=${snapshotPath}`);
-    dumpProc.Execute(true);
-    await dumpProc.Finish();
-    console.log("[9a] mysqldump completado.");
-    if (fs.existsSync(snapshotPath)) {
-      const stats = fs.statSync(snapshotPath);
-      console.log(`[9a] Snapshot guardado en: ${snapshotPath} (${stats.size} bytes)`);
-    } else {
-      console.error("[9a] ERROR: No se creó el archivo de dump.");
-      return;
-    }
+    // Objeto para almacenar los tiempos de cada etapa
+    const stageTimes = {
+      backupMySQL: { start: 0, end: 0, duration: 0 },
+      exportToJSON: { start: 0, end: 0, duration: 0 },
+      importToMongo: { start: 0, end: 0, duration: 0 },
+      dropMySQLTables: { start: 0, end: 0, duration: 0 },
+      exportFromMongo: { start: 0, end: 0, duration: 0 },
+      restoreMySQL: { start: 0, end: 0, duration: 0 }
+    };
 
-    // --- (b) Importar CSV exportados a MongoDB (no afecta la restauración directa desde JSON) ---
-    console.log("[9b] Importando CSV exportados a MongoDB...");
-    const mongoImportPath = "C:/MongoBin/mongoimport.exe"; // Ajusta esta ruta
-    {
-      const importAutor = new Process(mongoImportPath, { shell: true });
-      importAutor.ProcessArguments.push("--verbose");
-      importAutor.ProcessArguments.push("--db=BiblioMongo");
-      importAutor.ProcessArguments.push("--collection=Autor");
-      importAutor.ProcessArguments.push("--file=csv/exports/autor_export.csv");
-      importAutor.ProcessArguments.push("--type=csv");
-      importAutor.ProcessArguments.push("--headerline");
-      importAutor.Execute(true);
-      await importAutor.Finish();
-      console.log("[9b] Import Autor a MongoDB completado. Logs:", importAutor.Logs);
-    }
-    {
-      const importLibro = new Process(mongoImportPath, { shell: true });
-      importLibro.ProcessArguments.push("--verbose");
-      importLibro.ProcessArguments.push("--db=BiblioMongo");
-      importLibro.ProcessArguments.push("--collection=Libro");
-      importLibro.ProcessArguments.push("--file=csv/exports/libro_export.csv");
-      importLibro.ProcessArguments.push("--type=csv");
-      importLibro.ProcessArguments.push("--fields=id,ISBN,title,autor_license,editorial,pages,year,genre,language,format,sinopsis,content");
-      importLibro.Execute(true);
-      await importLibro.Finish();
-      console.log("[9b] Import Libro a MongoDB completado. Logs:", importLibro.Logs);
-    }
+    // --- (a) Backup MySQL ---
+    stageTimes.backupMySQL.start = Date.now();
+    console.log("\n[9a] Creando respaldo SQL de la base de datos...");
+    execSync(`"${MYSQLDUMP_PATH}" -uroot -ppassword123 biblioteca > mysql_backup.sql`);
+    stageTimes.backupMySQL.end = Date.now();
+    stageTimes.backupMySQL.duration = (stageTimes.backupMySQL.end - stageTimes.backupMySQL.start) / 1000;
+    console.log("[9a] Backup SQL completado");
 
-    // --- (c) Eliminar tablas "Libro" y "Autor" en MySQL ---
-    console.log("[9c] Eliminando tablas 'Libro' y 'Autor' en MySQL...");
-    {
-      const dropProc = new Process("mysql", { shell: true });
-      dropProc.ProcessArguments.push("-uroot");
-      dropProc.ProcessArguments.push("-password123");
-      dropProc.Execute(true);
-      dropProc.Write("USE biblioteca;\n");
-      dropProc.Write("DROP TABLE IF EXISTS Libro;\n");
-      dropProc.Write("DROP TABLE IF EXISTS Autor;\n");
-      dropProc.End();
-      await dropProc.Finish();
-      console.log("[9c] Tablas eliminadas en MySQL.");
-    }
+    // --- (b) Exportar datos a JSON ---
+    stageTimes.exportToJSON.start = Date.now();
+    console.log("\n[9b] Exportando tablas a JSON...");
+    const autorJsonPath = await exportTableToMongoJSON('Autor');
+    const libroJsonPath = await exportTableToMongoJSON('Libro');
+    stageTimes.exportToJSON.end = Date.now();
+    stageTimes.exportToJSON.duration = (stageTimes.exportToJSON.end - stageTimes.exportToJSON.start) / 1000;
+    console.log("[9b] Exportación JSON completada");
 
-    // --- (d) Exportar las colecciones de MongoDB a JSON ---
-    console.log("[9d] Exportando colecciones de MongoDB a JSON...");
-    const mongoExportPath = "C:/MongoBin/mongoexport.exe"; // Ajusta esta ruta
-    {
-      const expAutor = new Process(mongoExportPath, { shell: true });
-      expAutor.ProcessArguments.push("--db=BiblioMongo");
-      expAutor.ProcessArguments.push("--collection=Autor");
-      expAutor.ProcessArguments.push("--out=mongo_autor.json");
-      expAutor.Execute(true);
-      await expAutor.Finish();
-    }
-    {
-      const expLibro = new Process(mongoExportPath, { shell: true });
-      expLibro.ProcessArguments.push("--db=BiblioMongo");
-      expLibro.ProcessArguments.push("--collection=Libro");
-      expLibro.ProcessArguments.push("--out=mongo_libro.json");
-      expLibro.Execute(true);
-      await expLibro.Finish();
-    }
-    console.log("[9d] Exportación de MongoDB completada (mongo_autor.json y mongo_libro.json).");
+    // --- (c) Importar a MongoDB ---
+    stageTimes.importToMongo.start = Date.now();
+    console.log("\n[9c] Importando datos a MongoDB...");
+    console.log("\n[9c] Limpiando colecciones MongoDB...");
+    execSync(`"C:/MongoDb/bin/mongosh.exe" BiblioMongo --eval "db.Autor.drop()"`);
+    execSync(`"C:/MongoDb/bin/mongosh.exe" BiblioMongo --eval "db.Libro.drop()"`);
+    console.log("[9c] Colecciones limpiadas");
+    await importToMongoDB('Autor', autorJsonPath);
+    await importToMongoDB('Libro', libroJsonPath);
+    stageTimes.importToMongo.end = Date.now();
+    stageTimes.importToMongo.duration = (stageTimes.importToMongo.end - stageTimes.importToMongo.start) / 1000;
+    console.log("[9c] Importación MongoDB completada");
 
-    // --- (e) Restaurar en MySQL desde archivos JSON directamente ---
-    console.log("[9e] Restaurando en MySQL desde archivos JSON...");
-    // 1) Re-crea las tablas en MySQL
-    {
-      const createProc = new Process("mysql", { shell: true });
-      createProc.ProcessArguments.push("-uroot");
-      createProc.ProcessArguments.push("-password123");
-      createProc.Execute(true);
-      createProc.Write("USE biblioteca;\n");
-      createProc.Write(`
-        CREATE TABLE Autor(
-          id INT,
-          license VARCHAR(12) NOT NULL PRIMARY KEY,
-          name TINYTEXT NOT NULL,
-          lastName TINYTEXT,
-          secondLastName TINYTEXT,
-          year SMALLINT
-        );
-        CREATE TABLE Libro(
-          id INT,
-          ISBN VARCHAR(16) NOT NULL,
-          title VARCHAR(512) NOT NULL,
-          autor_license VARCHAR(12),
-          editorial TINYTEXT,
-          pages SMALLINT,
-          year SMALLINT NOT NULL,
-          genre TINYTEXT,
-          language TINYTEXT NOT NULL,
-          format TINYTEXT,
-          sinopsis TEXT,
-          content TEXT,
-          FOREIGN KEY (autor_license) REFERENCES Autor(license)
-        );
-      `);
-      createProc.End();
-      await createProc.Finish();
-      console.log("[9e] Tablas recreadas en MySQL.");
-    }
+    // --- (d) Eliminar tablas MySQL ---
+    stageTimes.dropMySQLTables.start = Date.now();
+    console.log("\n[9d] Eliminando tablas en MySQL...");
+    await dropMySQLTables();
+    stageTimes.dropMySQLTables.end = Date.now();
+    stageTimes.dropMySQLTables.duration = (stageTimes.dropMySQLTables.end - stageTimes.dropMySQLTables.start) / 1000;
+    console.log("[9d] Tablas eliminadas correctamente");
 
-    // 2) Importar datos para Autor desde mongo_autor.json (directamente, sin conversión a CSV)
-    {
-      const autorJsonPath = path.join(__dirname, "mongo_autor.json");
-      const autorContent = fs.readFileSync(autorJsonPath, "utf8");
-      const autorLines = autorContent.split("\n").filter(l => l.trim() !== "");
-      console.log(`[9e] Registros en mongo_autor.json: ${autorLines.length}`);
+    // --- (e) Exportar desde MongoDB ---
+    stageTimes.exportFromMongo.start = Date.now();
+    console.log("\n[9e] Exportando desde MongoDB a JSON...");
+    execSync(`"${MONGO_EXPORT_PATH}" --db BiblioMongo --collection Autor --jsonArray --fields="id,license,name,lastName,secondLastName,year" --out mongo_autor.json`);
+    execSync(`"${MONGO_EXPORT_PATH}" --db BiblioMongo --collection Libro --jsonArray --fields="id,ISBN,title,autor_license,editorial,pages,year,genre,language,format,sinopsis,content" --out mongo_libro.json`);
+    stageTimes.exportFromMongo.end = Date.now();
+    stageTimes.exportFromMongo.duration = (stageTimes.exportFromMongo.end - stageTimes.exportFromMongo.start) / 1000;
+    console.log("[9e] Exportación desde MongoDB completada");
 
-      const autorProc = new Process("mysql", { shell: true });
-      autorProc.ProcessArguments.push("-uroot");
-      autorProc.ProcessArguments.push("-password123");
-      autorProc.Execute(true);
-      autorProc.Write("USE biblioteca;\n");
+    // --- (f) Restaurar MySQL ---
+    stageTimes.restoreMySQL.start = Date.now();
+    console.log("\n[9f] Restaurando datos en MySQL...");
+    await restoreMySQLFromJSON();
+    stageTimes.restoreMySQL.end = Date.now();
+    stageTimes.restoreMySQL.duration = (stageTimes.restoreMySQL.end - stageTimes.restoreMySQL.start) / 1000;
+    console.log("[9f] Restauración completada");
 
-      let batchVals = [];
-      for (let i = 0; i < autorLines.length; i++) {
-        try {
-          const doc = JSON.parse(autorLines[i]);
-          const id = doc.id || 0;
-          const license = String(doc.license || "").replace(/'/g, "''");
-          const name = String(doc.name || "").replace(/'/g, "''");
-          const lastName = String(doc.lastName || "").replace(/'/g, "''");
-          const secondLastName = String(doc.secondLastName || "").replace(/'/g, "''");
-          const year = doc.year || 0;
-          batchVals.push(`(${id},'${license}','${name}','${lastName}','${secondLastName}',${year})`);
-        } catch(e) {
-          console.error("[9e] Error parseando JSON Autor:", e);
-        }
-        if (batchVals.length >= BATCH_SIZE) {
-          const query = `INSERT INTO Autor (id, license, name, lastName, secondLastName, year) VALUES ${batchVals.join(", ")};`;
-          autorProc.Write(query + "\n");
-          batchVals = [];
-          await sleep(BATCH_SLEEP_MS);
-        }
-      }
-      if (batchVals.length > 0) {
-        const query = `INSERT INTO Autor (id, license, name, lastName, secondLastName, year) VALUES ${batchVals.join(", ")};`;
-        autorProc.Write(query + "\n");
-      }
-      autorProc.End();
-      await autorProc.Finish();
-      console.log("[9e] Datos de Autor importados desde JSON.");
-    }
+    // Reporte de tiempos al final
+    const totalTime = ((Date.now() - globalStartTime) / 1000).toFixed(2);
+    
+    console.log('\n══════════════════════════════════════════════════');
+    console.log('           TIEMPOS DE EJECUCIÓN DETALLADOS         ');
+    console.log('══════════════════════════════════════════════════');
+    console.log(`1. Respaldo MySQL:          ${stageTimes.backupMySQL.duration.toFixed(2)}s`);
+    console.log(`2. Exportar a JSON:         ${stageTimes.exportToJSON.duration.toFixed(2)}s`);
+    console.log(`3. Importar a MongoDB:      ${stageTimes.importToMongo.duration.toFixed(2)}s`);
+    console.log(`4. Eliminar tablas MySQL:   ${stageTimes.dropMySQLTables.duration.toFixed(2)}s`);
+    console.log(`5. Exportar desde MongoDB:  ${stageTimes.exportFromMongo.duration.toFixed(2)}s`);
+    console.log(`6. Restaurar MySQL:         ${stageTimes.restoreMySQL.duration.toFixed(2)}s`);
+    console.log('──────────────────────────────────────────────────');
+    console.log(`TIEMPO TOTAL:               ${totalTime}s`);
+    console.log('══════════════════════════════════════════════════');
 
-    // 3) Importar datos para Libro desde mongo_libro.json directamente
-    {
-      const libroJsonPath = path.join(__dirname, "mongo_libro.json");
-      const libroContent = fs.readFileSync(libroJsonPath, "utf8");
-      const libroLines = libroContent.split("\n").filter(l => l.trim() !== "");
-      console.log(`[9e] Registros en mongo_libro.json: ${libroLines.length}`);
-
-      const libroProc = new Process("mysql", { shell: true });
-      libroProc.ProcessArguments.push("-uroot");
-      libroProc.ProcessArguments.push("-password123");
-      libroProc.Execute(true);
-      libroProc.Write("USE biblioteca;\n");
-
-      let batchVals = [];
-      for (let i = 0; i < libroLines.length; i++) {
-        try {
-          const doc = JSON.parse(libroLines[i]);
-          const id = doc.id || 0;
-          const ISBN = String(doc.ISBN || "").replace(/'/g, "''");
-          const title = String(doc.title || "").replace(/'/g, "''");
-          const autor_license = String(doc.autor_license || "").replace(/'/g, "''");
-          const editorial = String(doc.editorial || "").replace(/'/g, "''");
-          const pages = doc.pages || 0;
-          const year = doc.year || 0;
-          const genre = String(doc.genre || "").replace(/'/g, "''");
-          const language = String(doc.language || "").replace(/'/g, "''");
-          const format = String(doc.format || "").replace(/'/g, "''");
-          const sinopsis = String(doc.sinopsis || "").replace(/'/g, "''");
-          const content = String(doc.content || "").replace(/'/g, "''");
-          batchVals.push(`(${id},'${ISBN}','${title}','${autor_license}','${editorial}',${pages},${year},'${genre}','${language}','${format}','${sinopsis}','${content}')`);
-        } catch(e) {
-          console.error("[9e] Error parseando JSON Libro:", e);
-        }
-        if (batchVals.length >= BATCH_SIZE) {
-          const query = `INSERT INTO Libro (id, ISBN, title, autor_license, editorial, pages, year, genre, language, format, sinopsis, content)
-VALUES ${batchVals.join(", ")};`;
-          libroProc.Write(query + "\n");
-          batchVals = [];
-          await sleep(BATCH_SLEEP_MS);
-        }
-      }
-      if (batchVals.length > 0) {
-        const query = `INSERT INTO Libro (id, ISBN, title, autor_license, editorial, pages, year, genre, language, format, sinopsis, content)
-VALUES ${batchVals.join(", ")};`;
-        libroProc.Write(query + "\n");
-      }
-      libroProc.End();
-      await libroProc.Finish();
-      console.log("[9e] Datos de Libro importados desde JSON.");
-    }
-
-    const endRestore = Date.now();
-    console.log(`[9e] Restauración completa. Tiempo total: ${endRestore} ms`);
-    console.log("¡Respaldo en Mongo y restauración en MySQL finalizados (con restauración completa)!");
   } catch (err) {
-    console.error("Error en step9_backupMongo:", err);
+    console.error("\n[ERROR CRÍTICO] El proceso ha fallado:");
+    console.error("- Mensaje:", err.message);
+    process.exit(1);
   }
 })();
