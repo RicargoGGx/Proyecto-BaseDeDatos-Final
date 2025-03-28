@@ -24,7 +24,7 @@
             <div class="metric-list">
                 <h2>Resumen de Tiempos</h2>
                 <ul>
-                    <li><strong>step1 - generate_csv:</strong> 1049 ms</li>
+                    <li><strong>step1 - generate_csv:</strong> 1033 ms</li><li><strong>step2 - insert_csv:</strong> 3058 ms</li>
                 </ul>
             </div>
             
@@ -37,11 +37,11 @@
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: ["step1 - generate_csv"],
+                        labels: ["step1 - generate_csv","step2 - insert_csv"],
                         datasets: [{
                             label: 'Tiempo de ejecución (ms)',
-                            data: [1049],
-                            backgroundColor: ["rgba(255, 99, 132, 0.7)"],
+                            data: [1033,3058],
+                            backgroundColor: ["rgba(255, 99, 132, 0.7)","rgba(54, 162, 235, 0.7)"],
                             borderWidth: 1
                         }]
                     },

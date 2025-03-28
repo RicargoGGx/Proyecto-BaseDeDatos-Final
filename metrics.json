@@ -1,7 +1,10 @@
 {
   "steps": {
     "step1": {
-      "generate_csv": 1049
+      "generate_csv": 1033
+    },
+    "step2": {
+      "insert_csv": 3058
     }
   }
 }
