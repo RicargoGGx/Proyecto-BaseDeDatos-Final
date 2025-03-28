@@ -1,0 +1,64 @@
+
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Reporte de Métricas</title>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .chart-container { width: 90%; max-width: 800px; margin: 30px auto; }
+                h1 { color: #333; text-align: center; }
+                .metric-list { 
+                    background: #f5f5f5; 
+                    padding: 15px; 
+                    border-radius: 5px; 
+                    margin: 20px auto;
+                    max-width: 800px;
+                }
+                li { margin: 5px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>Reporte de Métricas de Ejecución</h1>
+            
+            <div class="metric-list">
+                <h2>Resumen de Tiempos</h2>
+                <ul>
+                    <li><strong>step1 - generate_csv:</strong> 1049 ms</li>
+                </ul>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="metricsChart"></canvas>
+            </div>
+
+            <script>
+                const ctx = document.getElementById('metricsChart');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ["step1 - generate_csv"],
+                        datasets: [{
+                            label: 'Tiempo de ejecución (ms)',
+                            data: [1049],
+                            backgroundColor: ["rgba(255, 99, 132, 0.7)"],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Tiempo (ms)'
+                                }
+                            }
+                        }
+                    }
+                });
+            </script>
+        </body>
+        </html>
+        

@@ -98,7 +98,7 @@ const path = require('path');
     startTime = Date.now();
     loadProc.Write("USE biblioteca;\n");
     loadProc.Write(`
-      LOAD DATA LOCAL INFILE '${outCSV.replace(/\\/g, '/')}'
+      LOAD DATA LOCAL INFILE '${csvFile.replace(/\\/g, '/')}'
       INTO TABLE old_books
       FIELDS TERMINATED BY ','
       LINES TERMINATED BY '\\n'
