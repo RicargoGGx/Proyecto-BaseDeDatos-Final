@@ -20,6 +20,8 @@ const Process = require('./Utils/Process');
       }
 
       const p = new Process("mysql", { shell: true });
+      // Agregar la opción para permitir LOAD DATA LOCAL INFILE
+      p.ProcessArguments.push("--local-infile=1");
       p.ProcessArguments.push("-uA");
       p.ProcessArguments.push("-ppasswordA");
       p.Execute(true);
@@ -30,11 +32,15 @@ const Process = require('./Utils/Process');
         INTO TABLE Libro
         FIELDS TERMINATED BY ','
         LINES TERMINATED BY '\\n'
-        (ISBN, title, autor_license, pages, year, language);
+        (id, ISBN, title, autor_license, editorial, pages, year, genre, language, format, sinopsis, content);
       `);
-
+      
       p.End();
       await p.Finish();
+
+      console.log(`[STEP 5] Comando ejecutado: LOAD DATA LOCAL INFILE '${csvPath.replace(/\\/g, '/')}'`);
+      console.log(`[STEP 5] Logs de salida (Archivo: ${fileName}):`, p.Logs);
+      console.log(`[STEP 5] Errores (Archivo: ${fileName}):`, p.ErrorsLog);
     }
 
     const endTime = Date.now();

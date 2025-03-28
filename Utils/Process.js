@@ -2,8 +2,8 @@
 const { spawn } = require('node:child_process');
 
 // Ajusta las rutas para que apunten a los binarios de MongoDB y MySQL que uses
-process.env.path += ";C:\\Program Files\\MongoDB\\Server\\8.0\\bin";
-process.env.path += ";C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin";
+process.env.path += ";C:\\Program Files\\MongoDB\\bin";
+process.env.path += ";C:\\Program Files\\MySQL\\bin";
 
 class Process {
     constructor(executable, options = {}) {
