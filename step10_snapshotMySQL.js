@@ -76,10 +76,6 @@ const path = require('path');
     console.log("\n¡Snapshot (dump + import) completado correctamente!");
   } catch (err) {
     console.error("\n[STEP 10] Error en el proceso:", err.message);
-    console.error("Posibles soluciones:");
-    console.error("1. Verifica que la base de datos biblioteca_test exista");
-    console.error("2. Comprueba los permisos del usuario root");
-    console.error("3. Asegúrate que el archivo de snapshot no esté corrupto");
     process.exit(1);
   }
 })();

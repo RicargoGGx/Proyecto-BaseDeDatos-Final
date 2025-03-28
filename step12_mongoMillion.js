@@ -74,7 +74,7 @@ const path = require('path');
     // (a) Crear la tabla
     const createProc = new Process("mysql", { shell: true });
     createProc.ProcessArguments.push("-uroot");
-    createProc.ProcessArguments.push("-ppasswordRoot");
+    createProc.ProcessArguments.push("-ppassword123");
     createProc.Execute(true);
 
     createProc.Write("USE biblioteca;\n");
@@ -91,7 +91,8 @@ const path = require('path');
     // (b) LOAD DATA INFILE
     const loadProc = new Process("mysql", { shell: true });
     loadProc.ProcessArguments.push("-uroot");
-    loadProc.ProcessArguments.push("-ppasswordRoot");
+    loadProc.ProcessArguments.push("-ppassword123");
+    loadProc.ProcessArguments.push("--local-infile=1");
     loadProc.Execute(true);
 
     startTime = Date.now();

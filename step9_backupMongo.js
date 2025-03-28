@@ -18,7 +18,7 @@ const ensureTempDir = () => {
   return TEMP_DIR;
 };
 
-// Función mejorada para exportar datos a JSON
+// exportar datos a JSON
 const exportTableToMongoJSON = async (tableName) => {
   const tempDir = ensureTempDir();
   const outputPath = path.join(tempDir, `${tableName}.json`);
