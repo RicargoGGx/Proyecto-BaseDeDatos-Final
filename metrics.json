@@ -1,19 +1,25 @@
 {
   "steps": {
     "step1": {
-      "generate_csv": 1195
+      "generate_csv": 1040
     },
     "step2": {
-      "insert_csv": 2956
+      "insert_csv": 2740
     },
     "step3": {
-      "insert_stress": 13460
+      "insert_stress": 13971
     },
     "step4": {
-      "generate_100_csvs": 400
+      "generate_100_csvs": 379
     },
     "step5": {
-      "insert_100_csvs": 12420
+      "insert_100_csvs": 13824
+    },
+    "step6": {
+      "aggregate_query": 2311
+    },
+    "step7": {
+      "total_time": 3663
     }
   }
 }

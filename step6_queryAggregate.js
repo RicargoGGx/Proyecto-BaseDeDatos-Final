@@ -1,7 +1,7 @@
-// step6_queryAggregate.js
 const Process = require('./Utils/Process');
+const { saveMetric } = require('./Utils/metrics');
 
-(async () => {
+module.exports = async () => {
   try {
     console.log("[STEP 6] Ejecutando query agregado en 'Libro'...");
 
@@ -27,9 +27,20 @@ const Process = require('./Utils/Process');
     await aggProc.Finish();
 
     const endTime = Date.now();
-    console.log(`[STEP 6] Tiempo total: ${endTime - startTime} ms`);
+    const executionTime = endTime - startTime;
+    
+    // Guardar métrica del tiempo de ejecución
+    saveMetric('step6', 'aggregate_query', executionTime);
+
+    console.log(`[STEP 6] Tiempo total: ${executionTime} ms`);
     console.log("Resultado del query:\n", aggProc.Logs);
+    
+    return {
+      executionTime,
+      queryResults: aggProc.Logs // Opcional: para uso futuro si necesitas los resultados
+    };
   } catch (err) {
     console.error("Error en step6_queryAggregate:", err);
+    throw err;
   }
-})();
+};

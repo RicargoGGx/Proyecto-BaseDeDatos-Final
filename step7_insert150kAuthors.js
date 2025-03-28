@@ -1,12 +1,14 @@
-// step7_insert150kAuthors.js
 const fs = require('fs');
 const path = require('path');
 const Process = require('./Utils/Process');
+const { saveMetric } = require('./Utils/metrics');
 
+// Función para generar números aleatorios
 function random_number(min, max) {
   return Math.floor(Math.random() * (max - min) + min);
 }
 
+// Función para generar texto aleatorio
 function random_text(characters_num) {
   let text = "";
   for (let i = 0; i < characters_num; i++) {
@@ -16,7 +18,7 @@ function random_text(characters_num) {
   return text;
 }
 
-// Genera un CSV con 150,000 autores: columnas: id, license, name, lastName, secondLastName, year
+// Genera un CSV con autores
 function generate_authors_csv(size) {
   let csv = "";
   for (let i = 1; i <= size; i++) {
@@ -31,27 +33,31 @@ function generate_authors_csv(size) {
   return csv;
 }
 
-(async () => {
+module.exports = async () => {
   try {
-    console.log("[STEP 7] Generando CSV para 150,000 Autores...");
+    console.log("[STEP 7] Iniciando generación e inserción de 150,000 autores...");
+    
+    // 1. Generación del CSV
+    const genStartTime = Date.now();
     const authorsCSVDir = path.join(__dirname, 'csv');
     if (!fs.existsSync(authorsCSVDir)) {
       fs.mkdirSync(authorsCSVDir);
     }
-    const startTime = Date.now();
+    
     const csvData = generate_authors_csv(150000);
     const csvFilePath = path.join(authorsCSVDir, 'autores_150k.csv');
     fs.writeFileSync(csvFilePath, csvData);
-    let endTime = Date.now();
-    console.log(`[STEP 7 - Generación CSV] Tiempo: ${endTime - startTime} ms`);
-    console.log(`Archivo generado: ${csvFilePath}`);
+    const genEndTime = Date.now();
+    const genTime = genEndTime - genStartTime;
     
-    console.log("[STEP 7] Insertando 150,000 Autores...");
+    console.log(`[STEP 7] CSV generado en: ${genTime} ms`);
+
+    // 2. Inserción a la base de datos
+    const insertStartTime = Date.now();
     const insertProc = new Process("mysql", { shell: true });
-    // Asegura que se active local_infile en la conexión
     insertProc.ProcessArguments.push("--local-infile=1");
-    insertProc.ProcessArguments.push("-uB");         // Usuario B (con permisos de INSERT en Autor)
-    insertProc.ProcessArguments.push("-ppasswordB");  // Ajusta la contraseña
+    insertProc.ProcessArguments.push("-uB");
+    insertProc.ProcessArguments.push("-ppasswordB");
     insertProc.Execute(true);
     
     insertProc.Write("USE biblioteca;\n");
@@ -64,13 +70,21 @@ function generate_authors_csv(size) {
     `);
     insertProc.End();
     await insertProc.Finish();
-    endTime = Date.now();
-    console.log(`[STEP 7 - Inserción] Tiempo: ${endTime - insertProc.StartTime} ms`);
-    console.log("[STEP 7] Logs:", insertProc.Logs);
-    console.log("[STEP 7] Errores:", insertProc.ErrorsLog);
+    const insertEndTime = Date.now();
+    const insertTime = insertEndTime - insertStartTime;
     
-    console.log("¡Autores insertados correctamente (si no hay errores)!");
+    saveMetric('step7', 'total_time', genTime + insertTime);
+
+    console.log(`[STEP 7] Autores insertados en: ${insertTime} ms`);
+    console.log(`[STEP 7] Tiempo total: ${genTime + insertTime} ms`);
+    
+    return {
+      generationTime: genTime,
+      insertionTime: insertTime,
+      totalTime: genTime + insertTime
+    };
   } catch (err) {
     console.error("Error en step7_insert150kAuthors:", err);
+    throw err;
   }
-})();
+};
