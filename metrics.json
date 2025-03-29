@@ -1,25 +1,44 @@
 {
   "steps": {
     "step1": {
-      "generate_csv": 1040
+      "generate_csv": 1057
     },
     "step2": {
-      "insert_csv": 2740
+      "insert_csv": 102
     },
     "step3": {
-      "insert_stress": 13971
+      "insert_stress": 13099
     },
     "step4": {
-      "generate_100_csvs": 379
+      "generate_100_csvs": 394
     },
     "step5": {
-      "insert_100_csvs": 13824
+      "insert_100_csvs": 11389
     },
     "step6": {
-      "aggregate_query": 2311
+      "aggregate_query": 773
     },
     "step7": {
-      "total_time": 3663
+      "total_time": 3620
+    },
+    "step8": {
+      "total_time": 256
+    },
+    "step9": {
+      "mysql_backup": 8472,
+      "export_to_json": 59287,
+      "total_time": 173716
+    },
+    "step10": {
+      "total_time": 41527
+    },
+    "step11": {
+      "autor_insert_fail_time": 126,
+      "libro_insert_fail_time": 107,
+      "total_time": 238
+    },
+    "step12": {
+      "generate_csv": 436
     }
   }
 }

@@ -1,81 +1,143 @@
-// step10_snapshotMySQL.js
-const Process = require('./Utils/Process');
 const fs = require('fs');
 const path = require('path');
+const { execSync, spawn } = require('child_process');
+const { saveMetric } = require('./Utils/metrics');
 
-(async () => {
+module.exports = async () => {
   try {
-    // Definimos la ruta del snapshot en la carpeta actual del proyecto
+    console.log("[STEP 10] Iniciando generación e importación del snapshot...");
+    const startTime = Date.now();
     const snapshotPath = path.join(__dirname, "mysql_backup.sql");
-    
-    console.log("[STEP 10] Iniciando generación del snapshot (mysqldump) de la base de datos 'biblioteca'...");
-    const startDump = Date.now();
-    const dumpProc = new Process("mysqldump", { shell: true });
-    dumpProc.ProcessArguments.push("-uroot");
-    dumpProc.ProcessArguments.push("-ppassword123");
-    dumpProc.ProcessArguments.push("biblioteca");
-    dumpProc.ProcessArguments.push(`--result-file=${snapshotPath}`);
-    dumpProc.Execute(true);
-    await dumpProc.Finish();
-    const endDump = Date.now();
-    console.log(`[STEP 10] mysqldump completado en: ${(endDump - startDump)/1000} segundos`);
 
-    // Verificar si el archivo del snapshot existe y su tamaño
+    // 1. Configurar el proceso mysqldump con spawn directamente
+    console.log("[STEP 10] Generando snapshot con mysqldump...");
+    const dumpStart = Date.now();
+    
+    // Eliminar archivo existente si hay
     if (fs.existsSync(snapshotPath)) {
-      const stats = fs.statSync(snapshotPath);
-      console.log(`[STEP 10] Snapshot guardado en: ${snapshotPath}`);
-      console.log(`[STEP 10] Tamaño del snapshot: ${(stats.size/1024/1024).toFixed(2)} MB`);
+      fs.unlinkSync(snapshotPath);
+    }
+
+    const dumpArgs = [
+      '--quick',
+      '--single-transaction',
+      '--skip-lock-tables',
+      '--compress',
+      '-uroot',
+      '-ppassword123',
+      'biblioteca'
+    ];
+
+    console.log("Ejecutando: mysqldump", dumpArgs.join(' '));
+    
+    const dumpProcess = spawn('mysqldump', dumpArgs);
+    const outputStream = fs.createWriteStream(snapshotPath);
+    
+    // Manejar salida
+    dumpProcess.stdout.pipe(outputStream);
+    
+    dumpProcess.stderr.on('data', (data) => {
+      console.error(`[mysqldump stderr]: ${data}`);
+    });
+
+    // Esperar finalización con promesa
+    await new Promise((resolve, reject) => {
+      dumpProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log("[STEP 10] mysqldump completado exitosamente");
+          resolve();
+        } else {
+          reject(new Error(`mysqldump falló con código ${code}`));
+        }
+      });
       
-      // Verificar que el archivo no esté vacío
-      if (stats.size === 0) {
-        console.error("[STEP 10] ERROR: El archivo de snapshot está vacío");
-        return;
-      }
-    } else {
-      console.error("[STEP 10] ERROR: No se encontró el archivo del snapshot en:", snapshotPath);
-      return;
+      dumpProcess.on('error', (err) => {
+        reject(err);
+      });
+    });
+
+    const dumpTime = Date.now() - dumpStart;
+    
+    // Verificación robusta del dump
+    if (!fs.existsSync(snapshotPath)) {
+      throw new Error("El archivo de snapshot no se creó");
     }
     
-    // Importar el snapshot en la base de datos "biblioteca_test"
-    console.log("[STEP 10] Importando snapshot en la base de datos 'biblioteca_test'...");
-    const startImport = Date.now();
+    const stats = fs.statSync(snapshotPath);
+    if (stats.size === 0) {
+      throw new Error("El archivo de snapshot está vacío");
+    }
+    console.log(`[STEP 10] Dump completado (${(stats.size/1024/1024).toFixed(2)} MB) en ${dumpTime}ms`);
+
+    // 2. Importar a la base de datos de prueba
+    console.log("[STEP 10] Preparando importación a biblioteca_test...");
+    const importStart = Date.now();
     
-    // Primero asegurarnos que la base de datos existe
-    const createDbProc = new Process("mysql", { shell: true });
-    createDbProc.ProcessArguments.push("-uroot");
-    createDbProc.ProcessArguments.push("-ppassword123");
-    createDbProc.Execute(true);
-    createDbProc.Write(`CREATE DATABASE IF NOT EXISTS biblioteca_test;\n`);
-    createDbProc.End();
-    await createDbProc.Finish();
+    // Primero crear/resetear la base de datos
+    execSync('mysql -uroot -ppassword123 -e "DROP DATABASE IF EXISTS biblioteca_test; CREATE DATABASE biblioteca_test;"');
     
-    // Ahora importar los datos usando redirección de entrada
-    const importProc = new Process("mysql", { shell: true });
-    importProc.ProcessArguments.push("-uroot");
-    importProc.ProcessArguments.push("-ppassword123");
-    importProc.ProcessArguments.push("biblioteca_test");
-    importProc.ProcessArguments.push(`< "${snapshotPath}"`);
-    importProc.Execute(true);
-    await importProc.Finish();
-    const endImport = Date.now();
-    console.log(`[STEP 10] Import completado en: ${(endImport - startImport)/1000} segundos`);
+    // Importar con spawn para mejor control
+    console.log("[STEP 10] Importando datos...");
+    const importProcess = spawn('mysql', [
+      '-uroot',
+      '-ppassword123',
+      'biblioteca_test'
+    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    
+    const inputStream = fs.createReadStream(snapshotPath);
+    inputStream.pipe(importProcess.stdin);
+    
+    // Mostrar progreso
+    importProcess.stdout.on('data', (data) => {
+      process.stdout.write('.');
+    });
+    
+    importProcess.stderr.on('data', (data) => {
+      console.error(`\n[mysql import error]: ${data}`);
+    });
+
+    await new Promise((resolve, reject) => {
+      importProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log("\n[STEP 10] Importación completada");
+          resolve();
+        } else {
+          reject(new Error(`mysql import falló con código ${code}`));
+        }
+      });
+      
+      importProcess.on('error', (err) => {
+        reject(err);
+      });
+    });
+
+    const importTime = Date.now() - importStart;
 
     // Verificación final
-    const verifyProc = new Process("mysql", { shell: true });
-    verifyProc.ProcessArguments.push("-uroot");
-    verifyProc.ProcessArguments.push("-ppassword123");
-    verifyProc.ProcessArguments.push("biblioteca_test");
-    verifyProc.ProcessArguments.push("-e");
-    verifyProc.ProcessArguments.push(`"SHOW TABLES;"`);
-    verifyProc.Execute(false); // No esperar input
-    const verifyOutput = await verifyProc.Finish();
+    console.log("[STEP 10] Verificando tablas...");
+    const verifyOutput = execSync(
+      'mysql -uroot -ppassword123 biblioteca_test -e "SELECT COUNT(*) AS total_libros FROM Libro; SELECT COUNT(*) AS total_autores FROM Autor;"'
+    ).toString();
     
-    console.log("\n[STEP 10] Verificación de tablas en biblioteca_test:");
+    const totalTime = Date.now() - startTime;
+    saveMetric('step10', 'total_time', totalTime);
+    
+    console.log("\n[STEP 10] Resultados:");
     console.log(verifyOutput);
+    console.log(`[STEP 10] Tiempo total: ${totalTime}ms`);
     
-    console.log("\n¡Snapshot (dump + import) completado correctamente!");
+    return totalTime;
   } catch (err) {
-    console.error("\n[STEP 10] Error en el proceso:", err.message);
-    process.exit(1);
+    console.error("\n[STEP 10] Error crítico:", err.message);
+    
+    // Limpieza de procesos
+    try {
+      execSync("taskkill /F /IM mysqldump.exe /T");
+      execSync("taskkill /F /IM mysql.exe /T");
+    } catch (killErr) {
+      console.error("Error limpiando procesos:", killErr.message);
+    }
+    
+    throw err;
   }
-})();
+};

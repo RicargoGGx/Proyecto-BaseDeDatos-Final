@@ -1,11 +1,12 @@
-// step8_exportTablesCSV.js
 const fs = require('fs');
 const path = require('path');
 const Process = require('./Utils/Process');
+const { saveMetric } = require('./Utils/metrics');
 
-(async () => {
+module.exports = async () => {
   try {
     console.log("[STEP 8] Exportando tablas Autor y Libro a CSV...");
+    const stepStartTime = Date.now(); // Tiempo de inicio del step completo
 
     // Ruta permitida por secure_file_priv
     const secureFolder = "C:/MySQL/Uploads";
@@ -29,7 +30,8 @@ const Process = require('./Utils/Process');
     exportAutor.End();
     await exportAutor.Finish();
     const endTimeAutor = Date.now();
-    console.log(`[STEP 8] Export Autor completado en: ${endTimeAutor - startTimeAutor} ms`);
+    const autorExportTime = endTimeAutor - startTimeAutor;
+    console.log(`[STEP 8] Export Autor completado en: ${autorExportTime} ms`);
 
     // Exportar tabla Libro
     const startTimeLibro = Date.now();
@@ -62,7 +64,8 @@ const Process = require('./Utils/Process');
     exportLibro.End();
     await exportLibro.Finish();
     const endTimeLibro = Date.now();
-    console.log(`[STEP 8] Export Libro completado en: ${endTimeLibro - startTimeLibro} ms`);
+    const libroExportTime = endTimeLibro - startTimeLibro;
+    console.log(`[STEP 8] Export Libro completado en: ${libroExportTime} ms`);
 
     // Ruta de la carpeta local para guardar los archivos exportados
     const exportFolderLocal = path.join(__dirname, 'csv', 'exports');
@@ -73,7 +76,10 @@ const Process = require('./Utils/Process');
     const autorExportLocal = path.join(exportFolderLocal, 'autor_export.csv');
     const libroExportLocal = path.join(exportFolderLocal, 'libro_export.csv');
 
-    // Verificar y copiar el archivo Autor
+    // Copiar archivos exportados a la carpeta local
+    const copyStartTime = Date.now();
+    let copyTime = 0;
+    
     if (!fs.existsSync(autorExportServer)) {
       console.error("[STEP 8] No se encontró el archivo exportado para Autor en:", autorExportServer);
     } else {
@@ -81,18 +87,38 @@ const Process = require('./Utils/Process');
       console.log("[STEP 8] Archivo Autor exportado copiado a:", autorExportLocal);
     }
 
-    // Verificar y copiar el archivo Libro
     if (!fs.existsSync(libroExportServer)) {
       console.error("[STEP 8] No se encontró el archivo exportado para Libro en:", libroExportServer);
     } else {
       fs.copyFileSync(libroExportServer, libroExportLocal);
       console.log("[STEP 8] Archivo Libro exportado copiado a:", libroExportLocal);
     }
+    
+    copyTime = Date.now() - copyStartTime;
+
+    // Calcular tiempo total del step
+    const stepEndTime = Date.now();
+    const stepTotalTime = stepEndTime - stepStartTime;
+    
+    // Guardar métricas
+    //saveMetric('step8', 'export_autor', autorExportTime);
+    //saveMetric('step8', 'export_libro', libroExportTime);
+    //saveMetric('step8', 'copy_files', copyTime);
+    saveMetric('step8', 'total_time', stepTotalTime);
 
     console.log("[STEP 8] Exportación completa.");
+    console.log(`[STEP 8] Tiempo total del step: ${stepTotalTime} ms`);
     console.log("Archivo Autor CSV (local):", autorExportLocal);
     console.log("Archivo Libro CSV (local):", libroExportLocal);
+    
+    return {
+      autorExportTime,
+      libroExportTime,
+      copyTime,
+      totalTime: stepTotalTime
+    };
   } catch (err) {
     console.error("Error en step8_exportTablesCSV:", err);
+    throw err;
   }
-})();
+};

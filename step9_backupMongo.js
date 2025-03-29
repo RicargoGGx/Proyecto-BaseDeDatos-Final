@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const mysql = require('mysql2/promise');
+const { saveMetric } = require('./Utils/metrics');
 
 // Configuración mejorada
 const TEMP_DIR = path.join(process.env.TEMP || __dirname, 'db_temp'); // Usar directorio temporal del sistema
@@ -235,7 +236,7 @@ const restoreMySQLFromJSON = async () => {
         }
 
         if (i % 1000 === 0 || i + batchSize >= data.length) {
-          console.log(`[Restore] Progreso ${tableName}: ${importedCount}/${data.length}`);
+          //console.log(`[Restore] Progreso ${tableName}: ${importedCount}/${data.length}`);
         }
       }
 
@@ -252,96 +253,45 @@ const restoreMySQLFromJSON = async () => {
 };
 
 // Función principal
-(async () => {
+module.exports = async () => {
   try {
     console.log("[STEP 9] Iniciando proceso de respaldo completo...");
-    const globalStartTime = Date.now();
-    ensureTempDir();
+    const startTime = Date.now();
 
-    // Objeto para almacenar los tiempos de cada etapa
-    const stageTimes = {
-      backupMySQL: { start: 0, end: 0, duration: 0 },
-      exportToJSON: { start: 0, end: 0, duration: 0 },
-      importToMongo: { start: 0, end: 0, duration: 0 },
-      dropMySQLTables: { start: 0, end: 0, duration: 0 },
-      exportFromMongo: { start: 0, end: 0, duration: 0 },
-      restoreMySQL: { start: 0, end: 0, duration: 0 }
-    };
-
-    // --- (a) Backup MySQL ---
-    stageTimes.backupMySQL.start = Date.now();
-    console.log("\n[9a] Creando respaldo SQL de la base de datos...");
+    // --- Ejecutar todas las operaciones del paso 9 ---
+    // 1. Backup MySQL
     execSync(`"${MYSQLDUMP_PATH}" -uroot -ppassword123 biblioteca > mysql_backup.sql`);
-    stageTimes.backupMySQL.end = Date.now();
-    stageTimes.backupMySQL.duration = (stageTimes.backupMySQL.end - stageTimes.backupMySQL.start) / 1000;
-    console.log("[9a] Backup SQL completado");
-
-    // --- (b) Exportar datos a JSON ---
-    stageTimes.exportToJSON.start = Date.now();
-    console.log("\n[9b] Exportando tablas a JSON...");
+    
+    // 2. Exportar a JSON
     const autorJsonPath = await exportTableToMongoJSON('Autor');
     const libroJsonPath = await exportTableToMongoJSON('Libro');
-    stageTimes.exportToJSON.end = Date.now();
-    stageTimes.exportToJSON.duration = (stageTimes.exportToJSON.end - stageTimes.exportToJSON.start) / 1000;
-    console.log("[9b] Exportación JSON completada");
-
-    // --- (c) Importar a MongoDB ---
-    stageTimes.importToMongo.start = Date.now();
-    console.log("\n[9c] Importando datos a MongoDB...");
-    console.log("\n[9c] Limpiando colecciones MongoDB...");
+    
+    // 3. Importar a MongoDB
     execSync(`"C:/MongoDb/bin/mongosh.exe" BiblioMongo --eval "db.Autor.drop()"`);
     execSync(`"C:/MongoDb/bin/mongosh.exe" BiblioMongo --eval "db.Libro.drop()"`);
-    console.log("[9c] Colecciones limpiadas");
     await importToMongoDB('Autor', autorJsonPath);
     await importToMongoDB('Libro', libroJsonPath);
-    stageTimes.importToMongo.end = Date.now();
-    stageTimes.importToMongo.duration = (stageTimes.importToMongo.end - stageTimes.importToMongo.start) / 1000;
-    console.log("[9c] Importación MongoDB completada");
-
-    // --- (d) Eliminar tablas MySQL ---
-    stageTimes.dropMySQLTables.start = Date.now();
-    console.log("\n[9d] Eliminando tablas en MySQL...");
+    
+    // 4. Eliminar tablas MySQL
     await dropMySQLTables();
-    stageTimes.dropMySQLTables.end = Date.now();
-    stageTimes.dropMySQLTables.duration = (stageTimes.dropMySQLTables.end - stageTimes.dropMySQLTables.start) / 1000;
-    console.log("[9d] Tablas eliminadas correctamente");
-
-    // --- (e) Exportar desde MongoDB ---
-    stageTimes.exportFromMongo.start = Date.now();
-    console.log("\n[9e] Exportando desde MongoDB a JSON...");
+    
+    // 5. Exportar desde MongoDB
     execSync(`"${MONGO_EXPORT_PATH}" --db BiblioMongo --collection Autor --jsonArray --fields="id,license,name,lastName,secondLastName,year" --out mongo_autor.json`);
     execSync(`"${MONGO_EXPORT_PATH}" --db BiblioMongo --collection Libro --jsonArray --fields="id,ISBN,title,autor_license,editorial,pages,year,genre,language,format,sinopsis,content" --out mongo_libro.json`);
-    stageTimes.exportFromMongo.end = Date.now();
-    stageTimes.exportFromMongo.duration = (stageTimes.exportFromMongo.end - stageTimes.exportFromMongo.start) / 1000;
-    console.log("[9e] Exportación desde MongoDB completada");
-
-    // --- (f) Restaurar MySQL ---
-    stageTimes.restoreMySQL.start = Date.now();
-    console.log("\n[9f] Restaurando datos en MySQL...");
-    await restoreMySQLFromJSON();
-    stageTimes.restoreMySQL.end = Date.now();
-    stageTimes.restoreMySQL.duration = (stageTimes.restoreMySQL.end - stageTimes.restoreMySQL.start) / 1000;
-    console.log("[9f] Restauración completada");
-
-    // Reporte de tiempos al final
-    const totalTime = ((Date.now() - globalStartTime) / 1000).toFixed(2);
     
-    console.log('\n══════════════════════════════════════════════════');
-    console.log('           TIEMPOS DE EJECUCIÓN DETALLADOS         ');
-    console.log('══════════════════════════════════════════════════');
-    console.log(`1. Respaldo MySQL:          ${stageTimes.backupMySQL.duration.toFixed(2)}s`);
-    console.log(`2. Exportar a JSON:         ${stageTimes.exportToJSON.duration.toFixed(2)}s`);
-    console.log(`3. Importar a MongoDB:      ${stageTimes.importToMongo.duration.toFixed(2)}s`);
-    console.log(`4. Eliminar tablas MySQL:   ${stageTimes.dropMySQLTables.duration.toFixed(2)}s`);
-    console.log(`5. Exportar desde MongoDB:  ${stageTimes.exportFromMongo.duration.toFixed(2)}s`);
-    console.log(`6. Restaurar MySQL:         ${stageTimes.restoreMySQL.duration.toFixed(2)}s`);
-    console.log('──────────────────────────────────────────────────');
-    console.log(`TIEMPO TOTAL:               ${totalTime}s`);
-    console.log('══════════════════════════════════════════════════');
+    // 6. Restaurar MySQL
+    await restoreMySQLFromJSON();
 
+    const endTime = Date.now();
+    const totalTime = endTime - startTime;
+    
+    // Guardar SOLO el tiempo total
+    saveMetric('step9', 'total_time', totalTime);
+
+    console.log(`[STEP 9] Proceso completado en ${totalTime} ms`);
+    return totalTime;
   } catch (err) {
-    console.error("\n[ERROR CRÍTICO] El proceso ha fallado:");
-    console.error("- Mensaje:", err.message);
-    process.exit(1);
+    console.error("Error en step9_backupRestore:", err);
+    throw err;
   }
-})();
+};

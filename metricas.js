@@ -5,7 +5,12 @@ const step3 = require('./step3_insert3500');
 const step4 = require('./step4_generate100CSVs');
 const step5 = require('./step5_insert100CSVs');
 const step6 = require('./step6_queryAggregate');
-const step7 = require('./step7_insert150kAuthors'); // Importar el nuevo paso
+const step7 = require('./step7_insert150kAuthors');
+const step8 = require('./step8_exportTablesCSV');
+const step9 = require('./step9_backupMongo');
+const step10 = require('./step10_snapshotMySQL');
+const step11 = require('./step11_failInsertsUserC');
+const step12 = require('./step12_mongoMillion');
 
 (async () => {
     try {
@@ -18,13 +23,19 @@ const step7 = require('./step7_insert150kAuthors'); // Importar el nuevo paso
         await step4();
         await step5();
         await step6();
-        await step7(); // Ejecutar el paso 7
+        await step7();
+        await step8();
+        await step9();
+        await step10();
+        await step11();
+        await step12();
         
-        // Generar reporte con todas las métricas
+        // Generar reporte
         generateReport();
         
         console.log("=== Proceso completado exitosamente ===");
     } catch (error) {
         console.error("Error en el proceso de métricas:", error);
+        process.exit(1);
     }
 })();

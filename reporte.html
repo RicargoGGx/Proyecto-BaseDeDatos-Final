@@ -24,7 +24,7 @@
             <div class="metric-list">
                 <h2>Resumen de Tiempos</h2>
                 <ul>
-                    <li><strong>step1 - generate_csv:</strong> 1040 ms</li><li><strong>step2 - insert_csv:</strong> 2740 ms</li><li><strong>step3 - insert_stress:</strong> 13971 ms</li><li><strong>step4 - generate_100_csvs:</strong> 379 ms</li><li><strong>step5 - insert_100_csvs:</strong> 13824 ms</li><li><strong>step6 - aggregate_query:</strong> 2311 ms</li><li><strong>step7 - total_time:</strong> 3663 ms</li>
+                    <li><strong>step1 - generate_csv:</strong> 1036 ms</li><li><strong>step2 - insert_csv:</strong> 2743 ms</li><li><strong>step3 - insert_stress:</strong> 13099 ms</li><li><strong>step4 - generate_100_csvs:</strong> 394 ms</li><li><strong>step5 - insert_100_csvs:</strong> 11389 ms</li><li><strong>step6 - aggregate_query:</strong> 773 ms</li><li><strong>step7 - total_time:</strong> 3620 ms</li><li><strong>step8 - total_time:</strong> 256 ms</li><li><strong>step9 - mysql_backup:</strong> 8472 ms</li><li><strong>step9 - export_to_json:</strong> 59287 ms</li><li><strong>step9 - total_time:</strong> 173716 ms</li><li><strong>step10 - total_time:</strong> 41527 ms</li><li><strong>step11 - autor_insert_fail_time:</strong> 126 ms</li><li><strong>step11 - libro_insert_fail_time:</strong> 107 ms</li><li><strong>step11 - total_time:</strong> 238 ms</li><li><strong>step12 - generate_csv:</strong> 436 ms</li>
                 </ul>
             </div>
             
@@ -37,11 +37,11 @@
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: ["step1 - generate_csv","step2 - insert_csv","step3 - insert_stress","step4 - generate_100_csvs","step5 - insert_100_csvs","step6 - aggregate_query","step7 - total_time"],
+                        labels: ["step1 - generate_csv","step2 - insert_csv","step3 - insert_stress","step4 - generate_100_csvs","step5 - insert_100_csvs","step6 - aggregate_query","step7 - total_time","step8 - total_time","step9 - mysql_backup","step9 - export_to_json","step9 - total_time","step10 - total_time","step11 - autor_insert_fail_time","step11 - libro_insert_fail_time","step11 - total_time","step12 - generate_csv"],
                         datasets: [{
                             label: 'Tiempo de ejecución (ms)',
-                            data: [1040,2740,13971,379,13824,2311,3663],
-                            backgroundColor: ["rgba(255, 99, 132, 0.7)","rgba(54, 162, 235, 0.7)","rgba(255, 206, 86, 0.7)","rgba(75, 192, 192, 0.7)","rgba(153, 102, 255, 0.7)","rgba(255, 99, 132, 0.7)","rgba(54, 162, 235, 0.7)"],
+                            data: [1036,2743,13099,394,11389,773,3620,256,8472,59287,173716,41527,126,107,238,436],
+                            backgroundColor: ["rgba(255, 99, 132, 0.7)","rgba(54, 162, 235, 0.7)","rgba(255, 206, 86, 0.7)","rgba(75, 192, 192, 0.7)","rgba(153, 102, 255, 0.7)","rgba(255, 99, 132, 0.7)","rgba(54, 162, 235, 0.7)","rgba(255, 206, 86, 0.7)","rgba(75, 192, 192, 0.7)","rgba(153, 102, 255, 0.7)","rgba(255, 99, 132, 0.7)","rgba(54, 162, 235, 0.7)","rgba(255, 206, 86, 0.7)","rgba(75, 192, 192, 0.7)","rgba(153, 102, 255, 0.7)","rgba(255, 99, 132, 0.7)"],
                             borderWidth: 1
                         }]
                     },
